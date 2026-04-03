@@ -1,0 +1,30 @@
+# Database
+financial_data.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Temp files
+_check_db.py
+_clean_nulls.py
+_db_report.txt
+_reload_data.py
+test_results.txt
+
+# OS
+Thumbs.db
+.DS_Store
