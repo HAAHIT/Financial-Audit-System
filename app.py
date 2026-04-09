@@ -19,6 +19,7 @@ from audit_rules.procurement import detect_price_outliers, compute_avg_material_
 from audit_rules.sales_analysis import detect_discount_outliers, detect_always_low_price_party
 from audit_rules.cashflow import compute_daily_profitability, compute_net_cashflow, compute_percentiles, compute_branch_summary, compute_branch_totals, compute_category_summary
 from audit_rules.correlation import build_time_series, correlate_two_metrics, find_all_correlations
+from ui_utils import render_filtered_dataframe
 
 # ── Page Config ─────────────────────────────────────────────
 st.set_page_config(page_title="Financial Audit Command Center", layout="wide", page_icon="🛡️")
@@ -191,7 +192,7 @@ with st.sidebar:
     gst_file = st.file_uploader("gst_upload", type=["csv"], label_visibility="collapsed", key="gst")
 
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-    if st.button("⚡ Process & Load", width="stretch"):
+    if st.button("⚡ Process & Load", use_container_width=True):
         counts = {}
         try:
             if bank_file: counts["Bank"] = load_bank_csv(bank_file, conn)
@@ -259,10 +260,10 @@ if not df_bank.empty:
         pc1, pc2 = st.columns(2)
         with pc1:
             st.markdown(f'{badge("DEBIT PERCENTILES","warning")}', unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame(pctls["debit_percentiles"], index=["₹"]).T.style.format("₹ {:,.0f}"), width="stretch")
+            render_filtered_dataframe(pd.DataFrame(pctls["debit_percentiles"], index=["₹"]).T.style.format("₹ {:,.0f}"), key_prefix="health_debit_pctls")
         with pc2:
             st.markdown(f'{badge("CREDIT PERCENTILES","success")}', unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame(pctls["credit_percentiles"], index=["₹"]).T.style.format("₹ {:,.0f}"), width="stretch")
+            render_filtered_dataframe(pd.DataFrame(pctls["credit_percentiles"], index=["₹"]).T.style.format("₹ {:,.0f}"), key_prefix="health_credit_pctls")
 
     # Daily profitability
     st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
@@ -288,14 +289,14 @@ b_tab1, b_tab2 = st.tabs(["Branch-wise", "Category-wise"])
 with b_tab1:
     bt = compute_branch_totals(conn)
     if not bt.empty:
-        st.dataframe(bt.style.format({"total_inward":"₹ {:,.0f}", "total_outward":"₹ {:,.0f}", "net_flow":"₹ {:,.0f}"}), width="stretch")
+        render_filtered_dataframe(bt.style.format({"total_inward":"₹ {:,.0f}", "total_outward":"₹ {:,.0f}", "net_flow":"₹ {:,.0f}"}), key_prefix="branch_totals")
         with st.expander("🔍 Branch + Category Drilldown"):
-            st.dataframe(compute_branch_summary(conn).style.format({"total_inward":"₹ {:,.0f}", "total_outward":"₹ {:,.0f}"}), width="stretch")
+            render_filtered_dataframe(compute_branch_summary(conn).style.format({"total_inward":"₹ {:,.0f}", "total_outward":"₹ {:,.0f}"}), key_prefix="branch_summary")
     else: st.info("Awaiting data.")
 with b_tab2:
     cs = compute_category_summary(conn)
     if not cs.empty:
-        st.dataframe(cs.style.format({"total_inward":"₹ {:,.0f}", "total_outward":"₹ {:,.0f}", "net_flow":"₹ {:,.0f}"}), width="stretch")
+        render_filtered_dataframe(cs.style.format({"total_inward":"₹ {:,.0f}", "total_outward":"₹ {:,.0f}", "net_flow":"₹ {:,.0f}"}), key_prefix="category_summary")
     else: st.info("Awaiting data.")
 
 # ═══════════════════════════════════════════════════════════
@@ -313,12 +314,12 @@ with tabs[0]:
     st.markdown(f"**Party Reconciliation & Year-over-Year Delta** {badge('RECONCILIATION','info')}", unsafe_allow_html=True)
     try:
         r = get_party_360(conn)
-        if not r.empty: st.dataframe(r.style.format(precision=2), width="stretch")
+        if not r.empty: render_filtered_dataframe(r.style.format(precision=2), key_prefix="party_360")
         else: st.info("Awaiting data.")
         m = compute_party_momentum(conn)
         if not m.empty:
             st.markdown(f"**Quarterly Momentum** {badge('TREND','info')}", unsafe_allow_html=True)
-            st.dataframe(m.style.format({"avg_momentum":"{:.1f}%"}), width="stretch")
+            render_filtered_dataframe(m.style.format({"avg_momentum":"{:.1f}%"}), key_prefix="party_momentum")
     except: st.info("Awaiting data.")
 
 # ── Correlation ──
@@ -340,7 +341,7 @@ with tabs[1]:
             else: st.warning("Insufficient overlapping data.")
             with st.expander("📊 Full Correlation Matrix"):
                 matrix = find_all_correlations(conn, min_months=1)
-                if not matrix.empty: st.dataframe(matrix.style.format("{:.2f}").background_gradient(cmap="RdYlGn", vmin=-1, vmax=1), width="stretch")
+                if not matrix.empty: render_filtered_dataframe(matrix.style.format("{:.2f}").background_gradient(cmap="RdYlGn", vmin=-1, vmax=1), key_prefix="correlation_matrix")
         else: st.info("Upload more data to build metrics.")
     except: st.info("Awaiting data.")
 
@@ -354,7 +355,7 @@ with tabs[2]:
         if not rd.empty:
             rd["cost_per_unit"] = rd["total_service"]/rd["total_sales"]
             st.line_chart(rd.set_index("month")["cost_per_unit"], color="#f59e0b")
-            st.dataframe(rd.style.format({"total_sales":"{:.0f}","total_service":"₹ {:,.0f}","cost_per_unit":"₹ {:.2f}"}), width="stretch")
+            render_filtered_dataframe(rd.style.format({"total_sales":"{:.0f}","total_service":"₹ {:,.0f}","cost_per_unit":"₹ {:.2f}"}), key_prefix="service_ratio")
         else: st.info("No Transport/Brokerage data found.")
     except: st.info("Awaiting data.")
 
@@ -364,7 +365,7 @@ with tabs[3]:
     try:
         g = reconcile_gst(conn)
         if not g.empty:
-            st.dataframe(g.style.format({"bank_gst_paid":"₹ {:,.0f}","portal_gst_filed":"₹ {:,.0f}","mismatch":"₹ {:,.0f}"}), width="stretch")
+            render_filtered_dataframe(g.style.format({"bank_gst_paid":"₹ {:,.0f}","portal_gst_filed":"₹ {:,.0f}","mismatch":"₹ {:,.0f}"}), key_prefix="gst_recon")
             if any(g["mismatch"]!=0):
                 st.markdown(f'{badge("MISMATCH DETECTED","danger")}', unsafe_allow_html=True)
             else:
@@ -372,7 +373,7 @@ with tabs[3]:
         else: st.info("Upload GST Portal CSV.")
         with st.expander("🔍 GST Misclassification Check"):
             mc = check_gst_misclassification(conn)
-            if not mc.empty: st.dataframe(mc, width="stretch")
+            if not mc.empty: render_filtered_dataframe(mc, key_prefix="gst_misclassification")
             else: st.markdown(f'{badge("CLEAN","success")}', unsafe_allow_html=True)
     except: st.info("Awaiting data.")
 
@@ -383,11 +384,11 @@ with tabs[4]:
         sp = detect_expense_spikes(conn)
         if not sp.empty:
             st.markdown(f'{badge(f"{len(sp)} SPIKES","danger")}', unsafe_allow_html=True)
-            st.dataframe(sp.style.format({"total_spent":"₹ {:,.0f}","prev_month_spent":"₹ {:,.0f}","spike_pct":"{:.1f}%"}), width="stretch")
+            render_filtered_dataframe(sp.style.format({"total_spent":"₹ {:,.0f}","prev_month_spent":"₹ {:,.0f}","spike_pct":"{:.1f}%"}), key_prefix="expense_spikes")
         else: st.markdown(f'{badge("STABLE","success")}', unsafe_allow_html=True)
         with st.expander("📉 Sudden Drops"):
             dr = detect_sudden_changes(conn, direction="decrease")
-            if not dr.empty: st.dataframe(dr.style.format({"total_spent":"₹ {:,.0f}","prev_month_spent":"₹ {:,.0f}","change_pct":"{:.1f}%"}), width="stretch")
+            if not dr.empty: render_filtered_dataframe(dr.style.format({"total_spent":"₹ {:,.0f}","prev_month_spent":"₹ {:,.0f}","change_pct":"{:.1f}%"}), key_prefix="sudden_drops")
             else: st.markdown(f'{badge("NO DROPS","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -398,7 +399,7 @@ with tabs[5]:
         s = detect_salary_spikes(conn)
         if not s.empty:
             st.markdown(f'{badge(f"{len(s)} SPIKES","danger")}', unsafe_allow_html=True)
-            st.dataframe(s.style.format({"total_salary":"₹ {:,.0f}","prev_month":"₹ {:,.0f}","spike_pct":"{:.1f}%"}), width="stretch")
+            render_filtered_dataframe(s.style.format({"total_salary":"₹ {:,.0f}","prev_month":"₹ {:,.0f}","spike_pct":"{:.1f}%"}), key_prefix="salary_spikes")
         else: st.markdown(f'{badge("STABLE","success")}', unsafe_allow_html=True)
     except: st.info("No salary data found.")
 
@@ -409,11 +410,11 @@ with tabs[6]:
         d = detect_discount_outliers(conn)
         if not d.empty:
             st.markdown(f'{badge(f"{len(d)} ANOMALIES","danger")}', unsafe_allow_html=True)
-            st.dataframe(d.style.format({"party_avg_rate":"₹ {:.0f}","global_avg_rate":"₹ {:.0f}","discount_pct":"{:.1f}%"}), width="stretch")
+            render_filtered_dataframe(d.style.format({"party_avg_rate":"₹ {:.0f}","global_avg_rate":"₹ {:.0f}","discount_pct":"{:.1f}%"}), key_prefix="discount_outliers")
         else: st.markdown(f'{badge("NO ANOMALIES","success")}', unsafe_allow_html=True)
         with st.expander("🔍 Consistently Low-Price Buyers"):
             lp = detect_always_low_price_party(conn)
-            if not lp.empty: st.dataframe(lp.style.format({"below_avg_ratio":"{:.1%}"}), width="stretch")
+            if not lp.empty: render_filtered_dataframe(lp.style.format({"below_avg_ratio":"{:.1%}"}), key_prefix="low_price_buyers")
             else: st.markdown(f'{badge("CLEAN","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -425,14 +426,14 @@ with tabs[7]:
         o = detect_price_outliers(conn, variance_pct=vt)
         if not o.empty:
             st.markdown(f'{badge(f"{len(o)} OUTLIERS","danger")}', unsafe_allow_html=True)
-            st.dataframe(o[["inv_date","party_name","item_name","rec_qty","implied_rate","baseline_rate","variance_pct","audit_status"]], width="stretch")
+            render_filtered_dataframe(o[["inv_date","party_name","item_name","rec_qty","implied_rate","baseline_rate","variance_pct","audit_status"]], key_prefix="price_outliers")
         else: st.markdown(f'{badge("WITHIN BOUNDS","success")}', unsafe_allow_html=True)
         with st.expander("📊 Average Material Cost"):
             ac = compute_avg_material_cost(conn)
-            if not ac.empty: st.dataframe(ac.style.format({"weighted_avg_rate":"₹ {:.0f}","min_rate":"₹ {:.0f}","max_rate":"₹ {:.0f}","total_value":"₹ {:,.0f}"}), width="stretch")
+            if not ac.empty: render_filtered_dataframe(ac.style.format({"weighted_avg_rate":"₹ {:.0f}","min_rate":"₹ {:.0f}","max_rate":"₹ {:.0f}","total_value":"₹ {:,.0f}"}), key_prefix="avg_material_cost")
         with st.expander("📜 BOM Historical Deviations"):
             bh = check_bom_historical(conn)
-            if not bh.empty: st.dataframe(bh, width="stretch")
+            if not bh.empty: render_filtered_dataframe(bh, key_prefix="bom_historical")
             else: st.markdown(f'{badge("WITHIN NORMS","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -443,11 +444,11 @@ with tabs[8]:
         mm = check_billing_math(conn)
         if not mm.empty:
             st.markdown(f'{badge(f"{len(mm)} ERRORS","danger")}', unsafe_allow_html=True)
-            st.dataframe(mm[["inv_no","party_name","material_value","tax_amt","charges_amt","rebate_amt","expected_net","net_amt","discrepancy","audit_status"]], width="stretch")
+            render_filtered_dataframe(mm[["inv_no","party_name","material_value","tax_amt","charges_amt","rebate_amt","expected_net","net_amt","discrepancy","audit_status"]], key_prefix="billing_errors")
         else: st.markdown(f'{badge("ALL CORRECT","success")}', unsafe_allow_html=True)
         with st.expander("📦 BOM Total Validation"):
             bom = validate_bom_totals(conn)
-            if not bom.empty: st.dataframe(bom, width="stretch")
+            if not bom.empty: render_filtered_dataframe(bom, key_prefix="bom_totals")
             else: st.markdown(f'{badge("ALL MATCHED","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -458,13 +459,13 @@ with tabs[9]:
         np_ = detect_new_parties(conn)
         if not np_.empty:
             st.markdown(f'{badge(f"{len(np_)} FLAGGED","warning")}', unsafe_allow_html=True)
-            st.dataframe(np_[["docdate","docno","contra_ledger_name","group_name","debit_amount","credit_amount"]], width="stretch")
+            render_filtered_dataframe(np_[["docdate","docno","contra_ledger_name","group_name","debit_amount","credit_amount"]], key_prefix="new_parties")
         else: st.markdown(f'{badge("NONE","success")}', unsafe_allow_html=True)
         with st.expander("🚩 New Party + New Group (Double Flag)"):
             df = detect_new_party_in_new_group(conn)
             if not df.empty:
                 st.markdown(f'{badge("HIGH RISK","danger")}', unsafe_allow_html=True)
-                st.dataframe(df, width="stretch")
+                render_filtered_dataframe(df, key_prefix="double_flag")
             else: st.markdown(f'{badge("CLEAR","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -475,7 +476,7 @@ with tabs[10]:
         ip = detect_interparty_anomalies(conn)
         if not ip.empty:
             st.markdown(f'{badge(f"{len(ip)} ANOMALIES","danger")}', unsafe_allow_html=True)
-            st.dataframe(ip.style.format({"party_avg_rate":"₹ {:.0f}","global_avg_rate":"₹ {:.0f}","deviation_pct":"{:.1f}%"}), width="stretch")
+            render_filtered_dataframe(ip.style.format({"party_avg_rate":"₹ {:.0f}","global_avg_rate":"₹ {:.0f}","deviation_pct":"{:.1f}%"}), key_prefix="interparty")
         else: st.markdown(f'{badge("CLEAN","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -486,13 +487,13 @@ with tabs[11]:
         um = reconcile_bank_vs_system(conn)
         if not um.empty:
             st.markdown(f'{badge(f"{len(um)} UNMATCHED","warning")}', unsafe_allow_html=True)
-            st.dataframe(um, width="stretch")
+            render_filtered_dataframe(um, key_prefix="bank_vs_erp")
         else: st.markdown(f'{badge("ALL MATCHED","success")}', unsafe_allow_html=True)
         with st.expander("💳 Payment Account Verification"):
             pav = check_payment_account_match(conn)
             if not pav.empty:
                 st.markdown(f'{badge("MISMATCHES","danger")}', unsafe_allow_html=True)
-                st.dataframe(pav, width="stretch")
+                render_filtered_dataframe(pav, key_prefix="payment_account")
             else: st.markdown(f'{badge("ALL VERIFIED","success")}', unsafe_allow_html=True)
     except: pass
 
@@ -506,13 +507,13 @@ with tabs[12]:
             with c1:
                 st.markdown(f'{badge("CREDITS","success")}', unsafe_allow_html=True)
                 cr = cl[cl["direction"]=="CREDIT"]["category_key"].value_counts()
-                st.dataframe(cr, width="stretch")
+                render_filtered_dataframe(pd.DataFrame(cr), key_prefix="classification_credits")
             with c2:
                 st.markdown(f'{badge("DEBITS","danger")}', unsafe_allow_html=True)
                 dr = cl[cl["direction"]=="DEBIT"]["category_key"].value_counts()
-                st.dataframe(dr, width="stretch")
+                render_filtered_dataframe(pd.DataFrame(dr), key_prefix="classification_debits")
             with st.expander("📋 Full Classified Ledger"):
-                st.dataframe(cl[["docdate","contra_ledger_name","debit_amount","credit_amount","direction","category_key","category_desc"]], width="stretch")
+                render_filtered_dataframe(cl[["docdate","contra_ledger_name","debit_amount","credit_amount","direction","category_key","category_desc"]], key_prefix="classification_full")
         else: st.info("Awaiting data.")
     except: pass
 
@@ -553,7 +554,7 @@ with tabs[14]:
     vt = st.radio("Table:", ["Bank Ledger","Purchase Ledger","Sales Ledger","GST Portal"], horizontal=True)
     tmap = {"Bank Ledger":"bank_ledger","Purchase Ledger":"purchase_ledger","Sales Ledger":"sales_ledger","GST Portal":"gst_portal"}
     try:
-        st.dataframe(pd.read_sql(f"SELECT * FROM {tmap[vt]}", conn), width="stretch")
+        render_filtered_dataframe(pd.read_sql(f"SELECT * FROM {tmap[vt]}", conn), key_prefix="vault")
     except: st.error("Table empty.")
 
 # ── Footer ──
