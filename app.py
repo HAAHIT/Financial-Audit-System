@@ -554,7 +554,13 @@ with tabs[14]:
     vt = st.radio("Table:", ["Bank Ledger","Purchase Ledger","Sales Ledger","GST Portal"], horizontal=True)
     tmap = {"Bank Ledger":"bank_ledger","Purchase Ledger":"purchase_ledger","Sales Ledger":"sales_ledger","GST Portal":"gst_portal"}
     try:
-        render_filtered_dataframe(pd.read_sql(f"SELECT * FROM {tmap[vt]}", conn), key_prefix="vault")
+        # Explicit whitelist validation for defense-in-depth
+        table = tmap.get(vt)
+        allowed_tables = {"bank_ledger", "purchase_ledger", "sales_ledger", "gst_portal"}
+        if table not in allowed_tables:
+            st.error("Invalid table selection.")
+        else:
+            render_filtered_dataframe(pd.read_sql(f"SELECT * FROM {table}", conn), key_prefix="vault")
     except: st.error("Table empty.")
 
 # ── Footer ──
