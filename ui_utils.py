@@ -5,16 +5,17 @@ from pandas.io.formats.style import Styler
 
 def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str, allow_unsafe_jscode: bool = False):
     """
-    Render a Pandas DataFrame or Styler as an interactive AgGrid table with client-side filtering and sorting.
+    Render a pandas DataFrame or Styler as an interactive AgGrid table with client-side filtering and sorting.
     
-    This function copies and normalizes the input data (accepts a DataFrame or a pandas Styler), preserves non-RangeIndex labels by resetting the index, and serializes datetime and object columns to strings to ensure compatibility with AgGrid. It builds grid options with filtering, sorting, resizing, and column menus, injects minimal custom CSS, and returns an AgGrid component configured to return filtered and sorted data.
+    If given a `Styler`, the styled display values are used. Non-default index labels are preserved by resetting the index into columns. Datetime and object-typed columns are serialized to strings to ensure AgGrid JSON compatibility. The resulting AgGrid component is configured to return filtered and sorted rows and uses a stable component key constructed as f"{key_prefix}_aggrid".
     
     Parameters:
-        df (pd.DataFrame | pandas.io.formats.style.Styler): The data to display; if a Styler is provided its underlying DataFrame is used.
-        key_prefix (str): Prefix used to build a stable Streamlit component key (final key is f"{key_prefix}_aggrid").
+        df (pd.DataFrame | pandas.io.formats.style.Styler): Data to display; if a `Styler` is provided, its formatted display values are used.
+        key_prefix (str): Prefix used to build the Streamlit component key (final key is f"{key_prefix}_aggrid").
+        allow_unsafe_jscode (bool): If `True`, allow injection of unsafe JavaScript code into the AgGrid component; passed through to AgGrid.
     
     Returns:
-        AgGrid: An st_aggrid.AgGrid component instance showing the provided data, configured to return filtered and sorted rows.
+        AgGrid: An st_aggrid.AgGrid component instance configured to return filtered and sorted rows.
     """
     # If the input is a Styler, extract the underlying dataframe and apply its formatters
     from pandas.io.formats.style import Styler
