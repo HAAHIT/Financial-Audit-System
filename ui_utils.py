@@ -10,7 +10,8 @@ def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str):
     # If the input is a Styler, extract the underlying dataframe
     # Note: st_aggrid does not fully support pandas Styler formatting,
     # so we extract the raw DataFrame for the grid.
-    if hasattr(df, "data") and isinstance(df.data, pd.DataFrame):
+    from pandas.io.formats.style import Styler
+    if isinstance(df, Styler):
         safe_df = df.data.copy()
     else:
         safe_df = df.copy()
@@ -47,7 +48,7 @@ def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str):
     }
 
     # 3. Component Rendering
-    grid_response = AgGrid(
+    return AgGrid(
         safe_df,
         gridOptions=gridOptions,
         update_mode=GridUpdateMode.NO_UPDATE, # Changed from SELECTION/VALUE since we mainly want a view/filter replacement for st.dataframe
@@ -59,5 +60,3 @@ def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str):
         allow_unsafe_jscode=True,
         key=f"{key_prefix}_aggrid",
     )
-
-    return grid_response
