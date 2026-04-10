@@ -4,8 +4,16 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
 def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str):
     """
-    Renders a Pandas DataFrame or Pandas Styler as an interactive AgGrid component.
-    Implements strong serialization to prevent hidden React panics.
+    Render a Pandas DataFrame or Styler as an interactive AgGrid table with client-side filtering and sorting.
+    
+    This function copies and normalizes the input data (accepts a DataFrame or a pandas Styler), preserves non-RangeIndex labels by resetting the index, and serializes datetime and object columns to strings to ensure compatibility with AgGrid. It builds grid options with filtering, sorting, resizing, and column menus, injects minimal custom CSS, and returns an AgGrid component configured to return filtered and sorted data.
+    
+    Parameters:
+        df (pd.DataFrame | pandas.io.formats.style.Styler): The data to display; if a Styler is provided its underlying DataFrame is used.
+        key_prefix (str): Prefix used to build a stable Streamlit component key (final key is f"{key_prefix}_aggrid").
+    
+    Returns:
+        AgGrid: An st_aggrid.AgGrid component instance showing the provided data, configured to return filtered and sorted rows.
     """
     # If the input is a Styler, extract the underlying dataframe
     # Note: st_aggrid does not fully support pandas Styler formatting,
