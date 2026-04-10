@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from pandas.io.formats.style import Styler
 
 def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str, allow_unsafe_jscode: bool = False):
     """
