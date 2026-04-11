@@ -1,21 +1,13 @@
 import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
-from pandas.io.formats.style import Styler
 
 def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str, allow_unsafe_jscode: bool = False):
     """
-    Render a pandas DataFrame or Styler as an interactive AgGrid table with client-side filtering and sorting.
-    
-    If given a `Styler`, the styled display values are used. Non-default index labels are preserved by resetting the index into columns. Datetime and object-typed columns are serialized to strings to ensure AgGrid JSON compatibility. The resulting AgGrid component is configured to return filtered and sorted rows and uses a stable component key constructed as f"{key_prefix}_aggrid".
-    
-    Parameters:
-        df (pd.DataFrame | pandas.io.formats.style.Styler): Data to display; if a `Styler` is provided, its formatted display values are used.
-        key_prefix (str): Prefix used to build the Streamlit component key (final key is f"{key_prefix}_aggrid").
-        allow_unsafe_jscode (bool): If `True`, allow injection of unsafe JavaScript code into the AgGrid component; passed through to AgGrid.
-    
-    Returns:
-        AgGrid: An st_aggrid.AgGrid component instance configured to return filtered and sorted rows.
+    Renders a Pandas DataFrame or Pandas Styler as an interactive AgGrid component.
+    Implements strong serialization to prevent hidden React panics.
+    Extracts display values from pandas Styler objects to preserve formatting.
+    Defaults to allow_unsafe_jscode=False for improved security.
     """
     # If the input is a Styler, extract the underlying dataframe and apply its formatters
     from pandas.io.formats.style import Styler
