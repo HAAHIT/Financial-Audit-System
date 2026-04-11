@@ -2,31 +2,67 @@ import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
-def render_filtered_dataframe(
-    df: pd.DataFrame | Styler,
-    key_prefix: str,
-    *,
-    allow_unsafe_jscode: bool = False,
-):
+def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str, allow_unsafe_jscode: bool = False):
     """
     Renders a Pandas DataFrame or Pandas Styler as an interactive AgGrid component.
     Implements strong serialization to prevent hidden React panics.
     Extracts display values from pandas Styler objects to preserve formatting.
     Defaults to allow_unsafe_jscode=False for improved security.
     """
-    # If the input is a Styler, extract the underlying dataframe and apply its formatters
+    import inspect
+    from st_aggrid import JsCode
     from pandas.io.formats.style import Styler
-    if isinstance(df, Styler):
-        data = df.data
-        # _display_funcs is a dictionary mapping (row_index, col_index) to a formatter function
-        # Compute the styled dataframe so that _display_funcs is fully populated
-        df._compute()
-        # Build a new dataframe with the formatted string values
-        safe_df = pd.DataFrame(
-            [[df._display_funcs.get((i, j), lambda x: x)(data.iloc[i,j]) for j in range(data.shape[1])] for i in range(data.shape[0])],
-            index=data.index,
-            columns=data.columns
-        )
+
+    aggrid_formatters = {}
+    is_styler = isinstance(df, Styler)
+
+    # If the input is a Styler, extract the underlying dataframe and map its formatters to AgGrid JsCode
+    if is_styler:
+        safe_df = df.data.copy()
+        df._compute() # Ensure display funcs are populated
+
+        # Extract python formatters and translate them to JS
+        for (r, c), func in df._display_funcs.items():
+            if r == 0: # Check the first row to get column-level formatters
+                col_name = df.data.columns[c]
+                fmt_str = None
+                if inspect.isfunction(func):
+                    closure = inspect.getclosurevars(func)
+                    if 'formatter' in closure.nonlocals and not callable(closure.nonlocals['formatter']):
+                        fmt_str = closure.nonlocals['formatter']
+                elif hasattr(func, 'keywords') and 'precision' in func.keywords:
+                    precision = func.keywords['precision']
+                    fmt_str = f"{{:.{precision}f}}"
+
+                if fmt_str:
+                    if "₹" in fmt_str:
+                        precision = 2 if ".2f" in fmt_str else 0
+                        aggrid_formatters[col_name] = JsCode(f"""function(params) {{
+                            if (params.value == null || isNaN(params.value)) return params.value;
+                            return '₹ ' + Number(params.value).toLocaleString('en-IN', {{minimumFractionDigits: {precision}, maximumFractionDigits: {precision}}});
+                        }}""")
+                    elif "%" in fmt_str:
+                        if "{:.1%}" in fmt_str:
+                            aggrid_formatters[col_name] = JsCode("""function(params) {
+                                if (params.value == null || isNaN(params.value)) return params.value;
+                                return (Number(params.value) * 100).toFixed(1) + '%';
+                            }""")
+                        elif "{:.1f}%" in fmt_str or "{:.1f} %" in fmt_str:
+                            aggrid_formatters[col_name] = JsCode("""function(params) {
+                                if (params.value == null || isNaN(params.value)) return params.value;
+                                return Number(params.value).toFixed(1) + '%';
+                            }""")
+                        else:
+                            aggrid_formatters[col_name] = JsCode("""function(params) {
+                                if (params.value == null || isNaN(params.value)) return params.value;
+                                return Number(params.value).toFixed(2) + '%';
+                            }""")
+                    elif "{:.0f}" in fmt_str or "{:.2f}" in fmt_str:
+                        precision = 0 if "{:.0f}" in fmt_str else 2
+                        aggrid_formatters[col_name] = JsCode(f"""function(params) {{
+                            if (params.value == null || isNaN(params.value)) return params.value;
+                            return Number(params.value).toFixed({precision});
+                        }}""")
     else:
         safe_df = df.copy()
 
@@ -50,6 +86,11 @@ def render_filtered_dataframe(
         # Enable column menus for the filtering/hamburger
         menuTabs=['filterMenuTab', 'generalMenuTab', 'columnsMenuTab']
     )
+    # Apply formatters to the columns
+    for col_name, js_formatter in aggrid_formatters.items():
+        gb.configure_column(col_name, valueFormatter=js_formatter)
+        allow_unsafe_jscode = True # We dynamically injected JS code
+
     # Removing selection mode to match st.dataframe's visual purity by default,
     # unless you explicitly want row selection checkboxes.
     # gb.configure_selection(selection_mode="single", use_checkbox=True)
