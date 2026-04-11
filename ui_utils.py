@@ -2,17 +2,31 @@ import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
-def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str):
+def render_filtered_dataframe(
+    df: pd.DataFrame | Styler,
+    key_prefix: str,
+    *,
+    allow_unsafe_jscode: bool = False,
+):
     """
     Renders a Pandas DataFrame or Pandas Styler as an interactive AgGrid component.
     Implements strong serialization to prevent hidden React panics.
+    Extracts display values from pandas Styler objects to preserve formatting.
+    Defaults to allow_unsafe_jscode=False for improved security.
     """
-    # If the input is a Styler, extract the underlying dataframe
-    # Note: st_aggrid does not fully support pandas Styler formatting,
-    # so we extract the raw DataFrame for the grid.
+    # If the input is a Styler, extract the underlying dataframe and apply its formatters
     from pandas.io.formats.style import Styler
     if isinstance(df, Styler):
-        safe_df = df.data.copy()
+        data = df.data
+        # _display_funcs is a dictionary mapping (row_index, col_index) to a formatter function
+        # Compute the styled dataframe so that _display_funcs is fully populated
+        df._compute()
+        # Build a new dataframe with the formatted string values
+        safe_df = pd.DataFrame(
+            [[df._display_funcs.get((i, j), lambda x: x)(data.iloc[i,j]) for j in range(data.shape[1])] for i in range(data.shape[0])],
+            index=data.index,
+            columns=data.columns
+        )
     else:
         safe_df = df.copy()
 
@@ -57,6 +71,6 @@ def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str):
         theme="alpine", # 'alpine' or 'streamlit' are generally safest in this version
         height=400,
         custom_css=custom_css,
-        allow_unsafe_jscode=True,
+        allow_unsafe_jscode=allow_unsafe_jscode,
         key=f"{key_prefix}_aggrid",
     )
