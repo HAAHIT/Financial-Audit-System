@@ -2,7 +2,12 @@ import pandas as pd
 import streamlit as st
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
 
-def render_filtered_dataframe(df: pd.DataFrame, key_prefix: str, allow_unsafe_jscode: bool = False):
+def render_filtered_dataframe(
+    df: pd.DataFrame | Styler,
+    key_prefix: str,
+    *,
+    allow_unsafe_jscode: bool = False,
+):
     """
     Renders a Pandas DataFrame or Pandas Styler as an interactive AgGrid component.
     Implements strong serialization to prevent hidden React panics.
